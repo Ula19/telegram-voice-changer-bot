@@ -1,0 +1,51 @@
+services:
+  # Бот
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # tmp для обрабатываемых голосовых
+      - /tmp/voice_bot:/tmp/voice_bot
+    networks:
+      - bot-network
+
+  # PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bot_4_voice}
+      POSTGRES_USER: ${DB_USER:-bot_4_voice}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bot_4_voice} -d ${DB_NAME:-bot_4_voice}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - bot-network
+
+  # Автоперезапуск unhealthy контейнеров
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - bot-network
+
+volumes:
+  postgres-data:
+
+networks:
+  bot-network:
+    driver: bridge
